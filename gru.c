@@ -219,6 +219,47 @@ void train_gru(GRU *gru, double input[][INPUT_SIZE], double target[], int datase
     }
 }
 
+// Evaluation function
+void evaluate_model(GRU *gru, double input[][INPUT_SIZE], double target[], int dataset_size)
+{
+    double total_mae = 0.0;
+    double total_mse = 0.0;
+    double total_r_squared = 0.0;
+    double mean_target = 0.0;
+
+    // Calculate mean of target values
+    for (int i = 0; i < dataset_size; i++)
+    {
+        mean_target += target[i];
+    }
+    mean_target /= dataset_size;
+
+    for (int i = 0; i < dataset_size; i++)
+    {
+        double output[OUTPUT_SIZE];
+
+        // Forward pass: Get the prediction
+        gru_forward(gru, input[i], output);
+
+        // Compute the errors
+        double error = target[i] - output[0];
+        total_mae += fabs(error);
+        total_mse += error * error;
+
+        // R-squared calculation
+        total_r_squared += (target[i] - mean_target) * (target[i] - mean_target);
+    }
+
+    double mse = total_mse / dataset_size;
+    double rmse = sqrt(mse);
+    double r_squared = 1.0 - (total_mse / total_r_squared);
+
+    printf("Mean Absolute Error (MAE): %f\n", total_mae / dataset_size);
+    printf("Mean Squared Error (MSE): %f\n", mse);
+    printf("Root Mean Squared Error (RMSE): %f\n", rmse);
+    printf("R-squared (R²): %f\n", r_squared);
+}
+
 int count_lines(FILE *file)
 {
     int lines = 0;
@@ -344,6 +385,8 @@ int main()
 
     // Train the GRU model
     train_gru(&gru, input_data, target_data, dataset_size);
+
+    evaluate_model(&gru, input_data, target_data, dataset_size);
 
     // Free dynamically allocated memory
     // for (int i = 0; i < dataset_size; i++)
