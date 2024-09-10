@@ -4,7 +4,7 @@
 #include <time.h>
 #include <string.h>
 
-#define INPUT_SIZE 2   // Number of features: rw_rat, is_seq, chunk_w, chunk_r, etc.
+#define INPUT_SIZE 5   // Number of features: rw_rat, is_seq, chunk_w, chunk_r, etc.
 #define HIDDEN_SIZE 10 // Number of units in the GRU's hidden state
 #define OUTPUT_SIZE 1  // We are predicting life_t, which is a single value
 #define LEARNING_RATE 0.001
@@ -183,7 +183,7 @@ int main()
 {
 
     // Read dataset from .log file
-    FILE *file = fopen("Data/FIO_train.log", "r");
+    FILE *file = fopen("Data/test.log", "r");
     if (file == NULL)
     {
         printf("Error: Could not open file\n");
@@ -201,36 +201,58 @@ int main()
     printf("Number of lines: %d\n", dataset_size);
 
     // Create a 2D array to store the input data
-    long **input_data = (long **)malloc(dataset_size * sizeof(long *));
-    
-    if (input_data == NULL) {
+    double **input_data = (double **)malloc(dataset_size * sizeof(double *));
+    double *target_data = (double *)malloc(dataset_size * sizeof(double));
+
+    if (input_data == NULL)
+    {
         printf("Error: Memory allocation failed for input_data\n");
         fclose(file);
         return 1;
     }
-    for (int i = 0; i < dataset_size; i++) {
-        input_data[i] = (long *)malloc(INPUT_SIZE * sizeof(long));
-        if (input_data[i] == NULL) {
+    for (int i = 0; i < dataset_size; i++)
+    {
+        input_data[i] = (double *)malloc(INPUT_SIZE * sizeof(double));
+        if (input_data[i] == NULL)
+        {
             printf("Error: Memory allocation failed for input_data[%d]\n", i);
             fclose(file);
             return 1;
         }
     }
-
+    int read_counter = 1;
+    int write_counter = 1;
     for (int i = 0; i < 10; i++)
     {
 
-        fscanf(file, "%ld %ld", &input_data[i][0], &input_data[i][1]);
-        printf("%ld %ld\n", input_data[i][0], input_data[i][1]);
+        target_data[i] = 0;
+        char readWrite;
+        double a, b;
+        fscanf(file, "%lf %lf %c %lf %lf", &a, &b, &readWrite, &input_data[i][0], &input_data[i][1]);
+        if (readWrite == 'r')
+        {
+            input_data[i][2] = 0;
+            read_counter++;
+        }
+        else
+        {
+            write_counter++;
+        }
+        input_data[i][2] = read_counter/write_counter;
+        for (int target_lb_counter = i - 1; target_lb_counter >= 0; target_lb_counter--)
+        {
+            if (input_data[i][0] == input_data[target_lb_counter][0])
+            {
+                target_data[i] = i - target_lb_counter;
+                break;
+            }
+        }
+
+        printf("%lf %lf %lf\n", input_data[i][0], input_data[i][1], input_data[i][2]);
+        printf("%lf\n", target_data[i]);
     }
 
     fclose(file);
-
-    for (int i = 0; i < 10; i++)
-    {
-        printf("%ld %ld\n", input_data[i][0], input_data[i][1]);
-        printf("\n");
-    }
 
     // // Sample input data (random example, replace with your actual data)
     // double input_data[4][INPUT_SIZE] = {
@@ -240,7 +262,7 @@ int main()
     //     {9.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
 
     // Sample target data (the life_t we want to predict)
-    double target_data[4] = {14.0, 13.0, 12.0, 11.0};
+    // double target_data[4] = {14.0, 13.0, 12.0, 11.0};
 
     // Train the GRU model
     // train_gru(&gru, input_data, target_data, 4);
