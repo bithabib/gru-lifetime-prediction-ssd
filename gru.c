@@ -4,7 +4,7 @@
 #include <time.h>
 #include <string.h>
 
-#define INPUT_SIZE 6   // Number of features: rw_rat, is_seq, chunk_w, chunk_r, etc.
+#define INPUT_SIZE 2   // Number of features: rw_rat, is_seq, chunk_w, chunk_r, etc.
 #define HIDDEN_SIZE 10 // Number of units in the GRU's hidden state
 #define OUTPUT_SIZE 1  // We are predicting life_t, which is a single value
 #define LEARNING_RATE 0.001
@@ -163,6 +163,22 @@ void train_gru(GRU *gru, double input[][INPUT_SIZE], double target[], int datase
     }
 }
 
+int count_lines(FILE *file)
+{
+    int lines = 0;
+    char ch;
+    while (!feof(file))
+    {
+        ch = fgetc(file);
+        if (ch == '\n')
+        {
+            lines++;
+        }
+    }
+    rewind(file);
+    return lines;
+}
+
 int main()
 {
 
@@ -174,42 +190,67 @@ int main()
         return 1;
     }
 
-    // Read the dataset and print first line to check
-    char line[256];
-    // input_data size will be the number of lines in the file
-    
-    while (fgets(line, sizeof(line), file))
-    {
-        // separate the line by spaces
-        char *token = strtok(line, " ");
-        while (token != NULL)
-        {
-            // Process the word (token) here
-            printf("Token: %s\n", token);
-
-            // Get the next token
-            token = strtok(NULL, " ");
-        }
-    }
-
     srand(time(NULL));
 
     // Define a GRU model
     GRU gru;
     initialize_gru(&gru);
 
-    // Sample input data (random example, replace with your actual data)
-    double input_data[4][INPUT_SIZE] = {
-        {3.0, 1.0, 0.0, 0.0, 1.0, 1.0}, // rw_rat, is_seq, chunk_w, chunk_r, etc.
-        {5.0, 1.0, 2.0, 1.0, 1.0, 0.0},
-        {7.0, 1.0, 1.0, 1.0, 0.0, 1.0},
-        {9.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
+    // count the number of lines in the file
+    int dataset_size = count_lines(file);
+    printf("Number of lines: %d\n", dataset_size);
+
+    // Create a 2D array to store the input data
+    long **input_data = (long **)malloc(dataset_size * sizeof(long *));
+    
+    if (input_data == NULL) {
+        printf("Error: Memory allocation failed for input_data\n");
+        fclose(file);
+        return 1;
+    }
+    for (int i = 0; i < dataset_size; i++) {
+        input_data[i] = (long *)malloc(INPUT_SIZE * sizeof(long));
+        if (input_data[i] == NULL) {
+            printf("Error: Memory allocation failed for input_data[%d]\n", i);
+            fclose(file);
+            return 1;
+        }
+    }
+
+    for (int i = 0; i < 10; i++)
+    {
+
+        fscanf(file, "%ld %ld", &input_data[i][0], &input_data[i][1]);
+        printf("%ld %ld\n", input_data[i][0], input_data[i][1]);
+    }
+
+    fclose(file);
+
+    for (int i = 0; i < 10; i++)
+    {
+        printf("%ld %ld\n", input_data[i][0], input_data[i][1]);
+        printf("\n");
+    }
+
+    // // Sample input data (random example, replace with your actual data)
+    // double input_data[4][INPUT_SIZE] = {
+    //     {3.0, 1.0, 0.0, 0.0, 1.0, 1.0}, // rw_rat, is_seq, chunk_w, chunk_r, etc.
+    //     {5.0, 1.0, 2.0, 1.0, 1.0, 0.0},
+    //     {7.0, 1.0, 1.0, 1.0, 0.0, 1.0},
+    //     {9.0, 0.0, 0.0, 0.0, 0.0, 1.0}};
 
     // Sample target data (the life_t we want to predict)
     double target_data[4] = {14.0, 13.0, 12.0, 11.0};
 
     // Train the GRU model
     // train_gru(&gru, input_data, target_data, 4);
+
+    // Free dynamically allocated memory
+    for (int i = 0; i < dataset_size; i++)
+    {
+        free(input_data[i]);
+    }
+    free(input_data);
 
     return 0;
 }
