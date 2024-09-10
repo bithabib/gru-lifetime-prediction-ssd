@@ -4,7 +4,7 @@
 #include <time.h>
 #include <string.h>
 
-#define INPUT_SIZE 5   // Number of features: rw_rat, is_seq, chunk_w, chunk_r, etc.
+#define INPUT_SIZE 4   // Number of features: rw_rat, is_seq, chunk_w, chunk_r, etc.
 #define HIDDEN_SIZE 10 // Number of units in the GRU's hidden state
 #define OUTPUT_SIZE 1  // We are predicting life_t, which is a single value
 #define LEARNING_RATE 0.001
@@ -137,6 +137,60 @@ void gru_forward(GRU *gru, double *input, double *output)
     }
 }
 
+void gru_backward(GRU *gru, double *input, double target, double output, double learning_rate)
+{
+    // Gradient of the loss with respect to the output (for Mean Squared Error)
+    double d_loss = 2 * (output - target); // dL/dy
+
+    double dz[HIDDEN_SIZE], dr[HIDDEN_SIZE], dh_tilde[HIDDEN_SIZE];
+    double dWh[HIDDEN_SIZE][INPUT_SIZE], dUh[HIDDEN_SIZE][HIDDEN_SIZE];
+    double dWz[HIDDEN_SIZE][INPUT_SIZE], dUz[HIDDEN_SIZE][HIDDEN_SIZE];
+    double dWr[HIDDEN_SIZE][INPUT_SIZE], dUr[HIDDEN_SIZE][HIDDEN_SIZE];
+
+    double dz_sum[HIDDEN_SIZE] = {0.0}, dr_sum[HIDDEN_SIZE] = {0.0};
+
+    // Backpropagate through the output layer (since it’s a linear combination of the hidden state)
+    for (int i = 0; i < HIDDEN_SIZE; i++)
+    {
+        // Gradients for the candidate hidden state
+        dz[i] = d_loss * (gru->hidden_state[i] - tanh_activation(gru->hidden_state[i])); // dz/dh_tilde
+        dh_tilde[i] = dz[i] * dtanh_activation(gru->hidden_state[i]);                    // dL/dh_tilde
+        dr[i] = d_loss * dtanh_activation(gru->hidden_state[i]);
+
+        // Compute the gradients for Wz, Uz, Wh, Uh, Wr, and Ur
+        for (int j = 0; j < INPUT_SIZE; j++)
+        {
+            dWz[i][j] = dz[i] * input[j];
+            dWh[i][j] = dh_tilde[i] * input[j];
+            dWr[i][j] = dr[i] * input[j];
+        }
+
+        for (int j = 0; j < HIDDEN_SIZE; j++)
+        {
+            dUz[i][j] = dz[i] * gru->hidden_state[j];
+            dUh[i][j] = dh_tilde[i] * gru->hidden_state[j];
+            dUr[i][j] = dr[i] * gru->hidden_state[j];
+        }
+    }
+
+    // Update the weights using gradient descent
+    for (int i = 0; i < HIDDEN_SIZE; i++)
+    {
+        for (int j = 0; j < INPUT_SIZE; j++)
+        {
+            gru->Wz[i][j] -= learning_rate * dWz[i][j];
+            gru->Wh[i][j] -= learning_rate * dWh[i][j];
+            gru->Wr[i][j] -= learning_rate * dWr[i][j];
+        }
+        for (int j = 0; j < HIDDEN_SIZE; j++)
+        {
+            gru->Uz[i][j] -= learning_rate * dUz[i][j];
+            gru->Uh[i][j] -= learning_rate * dUh[i][j];
+            gru->Ur[i][j] -= learning_rate * dUr[i][j];
+        }
+    }
+}
+
 // Training function
 void train_gru(GRU *gru, double input[][INPUT_SIZE], double target[], int dataset_size)
 {
@@ -147,15 +201,17 @@ void train_gru(GRU *gru, double input[][INPUT_SIZE], double target[], int datase
         for (int i = 0; i < dataset_size; i++)
         {
             double output[OUTPUT_SIZE];
+
+            // Forward pass: Get the prediction
             gru_forward(gru, input[i], output);
 
             // Compute the loss (MSE)
             double error = target[i] - output[0];
             total_loss += error * error;
 
-            // Backpropagation (gradient descent) would go here (not fully implemented for simplicity)
+            // Call backpropagation to adjust weights
+            gru_backward(gru, input[i], target[i], output[0], LEARNING_RATE);
 
-            // For simplicity, we just log the loss for now
             printf("Epoch %d, Data %d, Loss: %f\n", epoch, i, error * error);
         }
 
@@ -183,7 +239,7 @@ int main()
 {
 
     // Read dataset from .log file
-    FILE *file = fopen("Data/test.log", "r");
+    FILE *file = fopen("Data/NewData/FIO_test.log", "r");
     if (file == NULL)
     {
         printf("Error: Could not open file\n");
@@ -201,7 +257,7 @@ int main()
     printf("Number of lines: %d\n", dataset_size);
 
     // Create a 2D array to store the input data
-    double **input_data = (double **)malloc(dataset_size * sizeof(double *));
+    double(*input_data)[INPUT_SIZE] = malloc(dataset_size * sizeof(*input_data));
     double *target_data = (double *)malloc(dataset_size * sizeof(double));
 
     if (input_data == NULL)
@@ -210,46 +266,68 @@ int main()
         fclose(file);
         return 1;
     }
-    for (int i = 0; i < dataset_size; i++)
-    {
-        input_data[i] = (double *)malloc(INPUT_SIZE * sizeof(double));
-        if (input_data[i] == NULL)
-        {
-            printf("Error: Memory allocation failed for input_data[%d]\n", i);
-            fclose(file);
-            return 1;
-        }
-    }
+    // for (int i = 0; i < dataset_size; i++)
+    // {
+    //     input_data[i] = (double *)malloc(INPUT_SIZE * sizeof(double));
+    //     if (input_data[i] == NULL)
+    //     {
+    //         printf("Error: Memory allocation failed for input_data[%d]\n", i);
+    //         fclose(file);
+    //         return 1;
+    //     }
+    // }
     int read_counter = 1;
     int write_counter = 1;
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < dataset_size; i++)
     {
 
         target_data[i] = 0;
         char readWrite;
         double a, b;
         fscanf(file, "%lf %lf %c %lf %lf", &a, &b, &readWrite, &input_data[i][0], &input_data[i][1]);
+        input_data[i][3] = 0;
+        if (i != 0)
+        {
+            if (input_data[i][0] == input_data[i - 1][0] + input_data[i - 1][1])
+            {
+                input_data[i][3] = 1;
+            }
+        }
         if (readWrite == 'r')
         {
-            input_data[i][2] = 0;
             read_counter++;
         }
         else
         {
             write_counter++;
         }
-        input_data[i][2] = read_counter/write_counter;
+        input_data[i][2] = (double)read_counter / (double)write_counter;
         for (int target_lb_counter = i - 1; target_lb_counter >= 0; target_lb_counter--)
         {
             if (input_data[i][0] == input_data[target_lb_counter][0])
             {
+                double target_difference = i - target_lb_counter;
+                if (target_difference < 1000)
+                {
+                    target_data[i] = 1;
+                }
+                else if (target_difference < 10000)
+                {
+                    target_data[i] = 2;
+                }
+                else if (target_difference < 100000)
+                {
+                    target_data[i] = 3;
+                }
+                else
+                {
+                    target_data[i] = 4;
+                }
                 target_data[i] = i - target_lb_counter;
                 break;
             }
         }
-
-        printf("%lf %lf %lf\n", input_data[i][0], input_data[i][1], input_data[i][2]);
-        printf("%lf\n", target_data[i]);
+        printf("%d\n", i);
     }
 
     fclose(file);
@@ -265,14 +343,15 @@ int main()
     // double target_data[4] = {14.0, 13.0, 12.0, 11.0};
 
     // Train the GRU model
-    // train_gru(&gru, input_data, target_data, 4);
+    train_gru(&gru, input_data, target_data, dataset_size);
 
     // Free dynamically allocated memory
-    for (int i = 0; i < dataset_size; i++)
-    {
-        free(input_data[i]);
-    }
+    // for (int i = 0; i < dataset_size; i++)
+    // {
+    //     free(input_data[i]);
+    // }
     free(input_data);
+    free(target_data);
 
     return 0;
 }
