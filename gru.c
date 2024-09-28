@@ -383,18 +383,48 @@ int main()
     // Sample target data (the life_t we want to predict)
     // double target_data[4] = {14.0, 13.0, 12.0, 11.0};
 
-    // Train the GRU model
-    train_gru(&gru, input_data, target_data, dataset_size);
+    // Save input and target data to a file
+    FILE *input_file = fopen("input_data.txt", "w");
+    FILE *target_file = fopen("target_data.txt", "w");
 
-    evaluate_model(&gru, input_data, target_data, dataset_size);
+    if (input_file == NULL || target_file == NULL)
+    {
+        printf("Error: Could not open file\n");
+        return 1;
+    }
+
+    for (int i = 0; i < dataset_size; i++)
+    {
+        for (int j = 0; j < INPUT_SIZE; j++)
+        {
+            fprintf(input_file, "%f ", input_data[i][j]);
+        }
+        fprintf(input_file, "\n");
+        fprintf(target_file, "%f\n", target_data[i]);
+    }
+
+    fclose(input_file);
+    fclose(target_file);
+    
+
+    // Train the GRU model
+
+    // train_gru(&gru, input_data, target_data, dataset_size);
+
+    // evaluate_model(&gru, input_data, target_data, dataset_size);
 
     // Free dynamically allocated memory
     // for (int i = 0; i < dataset_size; i++)
     // {
     //     free(input_data[i]);
     // }
+    
+    
+    
     free(input_data);
     free(target_data);
+
+    
 
     return 0;
 }
