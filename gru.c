@@ -317,6 +317,15 @@ int main()
     //         return 1;
     //     }
     // }
+
+    // Data Set Format 
+    // 1. Logical Block Address (LBA)
+    // 2. Size of the I/O request
+    // 3. Read or Write (r/w)
+    // 4. Is Sequential (1 if sequential, 0 if random)
+    // 5. Time of the I/O request
+    // Target: Life Time (time difference between the current I/O request and the previous I/O request to the same LBA)
+    
     int read_counter = 1;
     int write_counter = 1;
     for (int i = 0; i < dataset_size; i++)
@@ -405,7 +414,7 @@ int main()
 
     fclose(input_file);
     fclose(target_file);
-    
+
 
     // Train the GRU model
 
